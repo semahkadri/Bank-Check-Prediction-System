@@ -40,16 +40,21 @@ if 'model_manager' not in st.session_state:
 def load_prediction_model():
     """Load the prediction model."""
     try:
-        model = CheckPredictionModel()
+        # Use the ModelManager to get the active model
+        model_manager = ModelManager()
+        active_model = model_manager.get_active_model()
         
-        # Try to load pre-trained model
-        model_path = Path("data/models/prediction_model.json")
-        if model_path.exists():
-            model.load_model(str(model_path))
-            return model
+        if active_model is not None:
+            return active_model
         else:
-            st.error("No pre-trained model found. Please train the model first.")
-            return None
+            # Check for legacy prediction_model.json
+            model_path = Path("data/models/prediction_model.json")
+            if model_path.exists():
+                model = CheckPredictionModel()
+                model.load_model(str(model_path))
+                return model
+            else:
+                return None
     except Exception as e:
         st.error(f"Failed to load model: {e}")
         return None
@@ -94,6 +99,15 @@ def main():
     if st.session_state.prediction_model is None:
         with st.spinner("Loading prediction model..."):
             st.session_state.prediction_model = load_prediction_model()
+    
+    # Also check if we need to reload from ModelManager (in case model was trained)
+    if st.session_state.prediction_model is None:
+        try:
+            active_model = st.session_state.model_manager.get_active_model()
+            if active_model is not None:
+                st.session_state.prediction_model = active_model
+        except Exception:
+            pass
     
     if st.session_state.dataset is None:
         with st.spinner("Loading dataset..."):
@@ -276,6 +290,10 @@ def show_predictions_page():
             
             # Make prediction
             try:
+                if st.session_state.prediction_model is None:
+                    st.error("No trained model available. Please train a model first in the Model Management section.")
+                    return
+                
                 result = st.session_state.prediction_model.predict(client_data)
                 
                 # Display results
