@@ -607,10 +607,80 @@ class CheckPredictionModel:
         if not self.is_trained:
             raise ValueError("Cannot save untrained model")
         
+        # Serialize model weights and parameters
+        nbr_model_data = None
+        montant_model_data = None
+        
+        if self.nbr_cheques_model:
+            if hasattr(self.nbr_cheques_model, 'weights'):
+                # Linear model
+                nbr_model_data = {
+                    'weights': self.nbr_cheques_model.weights,
+                    'bias': self.nbr_cheques_model.bias,
+                    'y_mean': getattr(self.nbr_cheques_model, 'y_mean', 0),
+                    'y_std': getattr(self.nbr_cheques_model, 'y_std', 1),
+                    'feature_means': getattr(self.nbr_cheques_model, 'feature_means', []),
+                    'feature_stds': getattr(self.nbr_cheques_model, 'feature_stds', [])
+                }
+            elif hasattr(self.nbr_cheques_model, 'trees'):
+                # Gradient boosting model
+                nbr_model_data = {
+                    'trees': self.nbr_cheques_model.trees,
+                    'initial_prediction': self.nbr_cheques_model.initial_prediction,
+                    'learning_rate': self.nbr_cheques_model.learning_rate
+                }
+            elif hasattr(self.nbr_cheques_model, 'w1'):
+                # Neural network model
+                nbr_model_data = {
+                    'w1': self.nbr_cheques_model.w1,
+                    'b1': self.nbr_cheques_model.b1,
+                    'w2': self.nbr_cheques_model.w2,
+                    'b2': self.nbr_cheques_model.b2,
+                    'hidden_size': self.nbr_cheques_model.hidden_size,
+                    'y_mean': getattr(self.nbr_cheques_model, 'y_mean', 0),
+                    'y_std': getattr(self.nbr_cheques_model, 'y_std', 1),
+                    'feature_means': getattr(self.nbr_cheques_model, 'feature_means', []),
+                    'feature_stds': getattr(self.nbr_cheques_model, 'feature_stds', [])
+                }
+        
+        if self.montant_max_model:
+            if hasattr(self.montant_max_model, 'weights'):
+                # Linear model
+                montant_model_data = {
+                    'weights': self.montant_max_model.weights,
+                    'bias': self.montant_max_model.bias,
+                    'y_mean': getattr(self.montant_max_model, 'y_mean', 0),
+                    'y_std': getattr(self.montant_max_model, 'y_std', 1),
+                    'feature_means': getattr(self.montant_max_model, 'feature_means', []),
+                    'feature_stds': getattr(self.montant_max_model, 'feature_stds', [])
+                }
+            elif hasattr(self.montant_max_model, 'trees'):
+                # Gradient boosting model
+                montant_model_data = {
+                    'trees': self.montant_max_model.trees,
+                    'initial_prediction': self.montant_max_model.initial_prediction,
+                    'learning_rate': self.montant_max_model.learning_rate
+                }
+            elif hasattr(self.montant_max_model, 'w1'):
+                # Neural network model
+                montant_model_data = {
+                    'w1': self.montant_max_model.w1,
+                    'b1': self.montant_max_model.b1,
+                    'w2': self.montant_max_model.w2,
+                    'b2': self.montant_max_model.b2,
+                    'hidden_size': self.montant_max_model.hidden_size,
+                    'y_mean': getattr(self.montant_max_model, 'y_mean', 0),
+                    'y_std': getattr(self.montant_max_model, 'y_std', 1),
+                    'feature_means': getattr(self.montant_max_model, 'feature_means', []),
+                    'feature_stds': getattr(self.montant_max_model, 'feature_stds', [])
+                }
+        
         model_data = {
             'model_type': self.model_type,
             'is_trained': self.is_trained,
-            'metrics': self.metrics
+            'metrics': self.metrics,
+            'nbr_model_data': nbr_model_data,
+            'montant_model_data': montant_model_data
         }
         
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -624,6 +694,47 @@ class CheckPredictionModel:
         self.model_type = model_data['model_type']
         self.is_trained = model_data['is_trained']
         self.metrics = model_data['metrics']
+        
+        # Restore actual model objects if they exist
+        if 'nbr_model_data' in model_data and model_data['nbr_model_data']:
+            self.nbr_cheques_model = self._restore_model(model_data['nbr_model_data'], self.model_type)
+        
+        if 'montant_model_data' in model_data and model_data['montant_model_data']:
+            self.montant_max_model = self._restore_model(model_data['montant_model_data'], self.model_type)
+    
+    def _restore_model(self, model_data: Dict[str, Any], model_type: str):
+        """Restore a model instance from saved data."""
+        if model_type == 'linear':
+            model = OptimizedLinearRegression()
+            model.weights = model_data.get('weights', [])
+            model.bias = model_data.get('bias', 0.0)
+            model.y_mean = model_data.get('y_mean', 0)
+            model.y_std = model_data.get('y_std', 1)
+            model.feature_means = model_data.get('feature_means', [])
+            model.feature_stds = model_data.get('feature_stds', [])
+            return model
+        
+        elif model_type == 'gradient_boost':
+            model = FastGradientBoosting()
+            model.trees = model_data.get('trees', [])
+            model.initial_prediction = model_data.get('initial_prediction', 0.0)
+            model.learning_rate = model_data.get('learning_rate', 0.1)
+            return model
+        
+        elif model_type == 'neural_network':
+            model = OptimizedNeuralNetwork()
+            model.w1 = model_data.get('w1', [])
+            model.b1 = model_data.get('b1', [])
+            model.w2 = model_data.get('w2', [])
+            model.b2 = model_data.get('b2', 0.0)
+            model.hidden_size = model_data.get('hidden_size', 16)
+            model.y_mean = model_data.get('y_mean', 0)
+            model.y_std = model_data.get('y_std', 1)
+            model.feature_means = model_data.get('feature_means', [])
+            model.feature_stds = model_data.get('feature_stds', [])
+            return model
+        
+        return None
     
     def get_model_info(self) -> Dict[str, Any]:
         """Get model information."""
